@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reportes – PetStore</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    .chart-wrap { position: relative; height: 240px; }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab-btn {
+      padding: 8px 18px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span>🐾</span> PetStore</div>
+    <div class="sub">Sistema de facturación</div>
+  </div>
+  <div class="nav">
+    <a href="/"><span class="icon">⊞</span> Dashboard</a>
+    <a href="/ticket.html"><span class="icon">🧾</span> Nueva Venta</a>
+    <a href="/productos.html"><span class="icon">📦</span> Productos</a>
+    <a href="/historial.html"><span class="icon">📋</span> Historial</a>
+    <a href="/reportes.html"><span class="icon">📊</span> Reportes</a>
+  </div>
+  <div class="sidebar-footer">v1.0 &mdash; 2025</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Reportes & Cierres</h1>
+    <button class="btn btn-primary" id="btn-cierre-dia">🔒 Cierre del día</button>
+  </div>
+
+  <div class="content">
+
+    <!-- Resumen del día -->
+    <div class="stats-grid mb-24">
+      <div class="stat-card">
+        <div class="label">Ventas hoy</div>
+        <div class="value accent" id="r-ventas">–</div>
+        <div class="icon-bg">🧾</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Monto final hoy</div>
+        <div class="value green" id="r-monto">–</div>
+        <div class="icon-bg">💰</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Costo productos</div>
+        <div class="value" id="r-costo" style="color:var(--text-muted)">–</div>
+        <div class="icon-bg">📦</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ganancia neta</div>
+        <div class="value" id="r-ganancia" style="color:var(--accent)">–</div>
+        <div class="icon-bg">📈</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ticket promedio</div>
+        <div class="value" id="r-promedio">–</div>
+        <div class="icon-bg">🎯</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Items vendidos</div>
+        <div class="value" id="r-items">–</div>
+        <div class="icon-bg">🛒</div>
+      </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="card mb-24">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('semanal', this)">📅 Últimos 7 días</button>
+        <button class="tab-btn" onclick="switchTab('mensual', this)">📆 Últimos 12 meses</button>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="main-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Historial de cierres -->
+    <div class="card">
+      <div class="card-title">🗂 Historial de Cierres</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th class="text-right">Ventas</th>
+              <th class="text-right">Items</th>
+              <th class="text-right">Total</th>
+              <th class="text-right">Costo</th>
+              <th class="text-right">Ganancia</th>
+              <th>Cerrado</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-cierres">
+            <tr><td colspan="7" class="text-center" style="padding:24px;color:var(--text-dim)"><div class="loader"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal cierre del día -->
+<div class="modal-overlay" id="modal-cierre">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔒 Confirmar Cierre del Día</div>
+      <button class="modal-close" onclick="closeModal('modal-cierre')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:14px">Se va a registrar el cierre del día de hoy con los siguientes totales:</p>
+      <div id="resumen-cierre-detalle" style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-cierre')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarCierre()">Registrar Cierre</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+let chart = null;
+let datosSemanal = [];
+let datosMensual = [];
+
+// Colores para Chart.js
+const chartColors = {
+  bar: 'rgba(232, 197, 71, 0.7)',
+  barHover: 'rgba(232, 197, 71, 1)',
+  line: '#4ecb82',
+  grid: '#2e2c28',
+  text: '#8a8680',
+};
+
+Chart.defaults.color = chartColors.text;
+Chart.defaults.borderColor = chartColors.grid;
+
+async function loadReportesHoy() {
+  const r = await API.get('/reportes/hoy');
+  if (!r.ok) return;
+  const d = r.data;
+  document.getElementById('r-ventas').textContent = d.total_ventas;
+  document.getElementById('r-monto').textContent = fmt.currency(d.total_monto);
+  document.getElementById('r-costo').textContent = fmt.currency(d.total_costo);
+  document.getElementById('r-ganancia').textContent = fmt.currency(d.ganancia);
+  document.getElementById('r-promedio').textContent = fmt.currency(d.ticket_promedio);
+  document.getElementById('r-items').textContent = d.total_items;
+}
+
+async function loadSemanal() {
+  const r = await API.get('/reportes/semanal');
+  if (!r.ok) return;
+  datosSemanal = r.data;
+}
+
+async function loadMensual() {
+  const r = await API.get('/reportes/mensual');
+  if (!r.ok) return;
+  datosMensual = r.data;
+}
+
+function renderChart(tipo) {
+  const datos = tipo === 'semanal' ? datosSemanal : datosMensual;
+  const labels = datos.map(d => tipo === 'semanal' ? fmt.date(d.fecha) : d.mes_label);
+  const montos = datos.map(d => parseFloat(d.total_monto));
+  const ventas = datos.map(d => parseInt(d.total_ventas));
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('main-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Monto ($)',
+          data: montos,
+          backgroundColor: chartColors.bar,
+          hoverBackgroundColor: chartColors.barHover,
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Ventas',
+          data: ventas,
+          type: 'line',
+          borderColor: chartColors.line,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointBackgroundColor: chartColors.line,
+          pointRadius: 4,
+          tension: 0.3,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.yAxisID === 'y'
+              ? ` ${fmt.currency(ctx.raw)}`
+              : ` ${ctx.raw} ventas`
+          }
+        }
+      },
+      scales: {
+        y: { position: 'left', ticks: { callback: v => '$' + v.toLocaleString('es-AR') } },
+        y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+}
+
+function switchTab(tipo, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart(tipo);
+}
+
+async function loadCierres() {
+  const r = await API.get('/reportes/cierres');
+  const tbody = document.getElementById('tbody-cierres');
+  if (!r.ok || !r.data.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">🗂</div><p>Sin cierres registrados aún</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = r.data.map(c => {
+    const ganancia = parseFloat(c.total_monto) - parseFloat(c.total_costo || 0);
+    return `
+    <tr>
+      <td>${fmt.date(c.fecha + 'T12:00:00')}</td>
+      <td class="text-right">${c.total_ventas}</td>
+      <td class="text-right">${c.total_items}</td>
+      <td class="text-right"><strong class="text-accent">${fmt.currency(c.total_monto)}</strong></td>
+      <td class="text-right" style="color:var(--text-muted)">${fmt.currency(c.total_costo || 0)}</td>
+      <td class="text-right"><strong class="text-green">${fmt.currency(ganancia)}</strong></td>
+      <td style="font-size:12px;color:var(--text-muted)">${fmt.datetime(c.cerrado_en)}</td>
+    </tr>
+  `}).join('');
+}
+
+document.getElementById('btn-cierre-dia').addEventListener('click', async () => {
+  const r = await API.get('/reportes/hoy');
+  if (r.ok) {
+    const d = r.data;
+    document.getElementById('resumen-cierre-detalle').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Ventas del día</div><div style="font-size:28px;font-weight:800;color:var(--accent)">${d.total_ventas}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total recaudado</div><div style="font-size:28px;font-weight:800;color:var(--green)">${fmt.currency(d.total_monto)}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Items vendidos</div><div style="font-size:22px;font-weight:800">${d.total_items}</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Ticket promedio</div><div style="font-size:22px;font-weight:800">${fmt.currency(d.ticket_promedio)}</div></div>
+      </div>
+    `;
+  }
+  openModal('modal-cierre');
+});
+
+async function confirmarCierre() {
+  const r = await API.post('/reportes/cierre-dia', {});
+  if (r.ok) {
+    toast('Cierre registrado correctamente', 'success');
+    closeModal('modal-cierre');
+    loadCierres();
+  } else {
+    toast('Error: ' + r.error, 'error');
+  }
+}
+
+// Init
+Promise.all([loadReportesHoy(), loadSemanal(), loadMensual(), loadCierres()])
+  .then(() => renderChart('semanal'));
+</script>
+</body>
+</html>

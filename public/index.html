@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – Colitas Felices</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span>🐾</span> Colitas Felices</div>
+    <div class="sub">Sistema de facturación</div>
+  </div>
+  <div class="nav">
+    <a href="/"><span class="icon">⊞</span> Dashboard</a>
+    <a href="/ticket.html"><span class="icon">🧾</span> Nueva Venta</a>
+    <a href="/productos.html"><span class="icon">📦</span> Productos</a>
+    <a href="/historial.html"><span class="icon">📋</span> Historial</a>
+    <a href="/reportes.html"><span class="icon">📊</span> Reportes</a>
+  </div>
+  <div class="sidebar-footer">v1.0 &mdash; 2025</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Dashboard</h1>
+    <span class="fecha" id="fecha-hoy"></span>
+  </div>
+
+  <div class="content">
+
+    <!-- Stats hoy -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Ventas hoy</div>
+        <div class="value accent" id="stat-ventas">–</div>
+        <div class="icon-bg">🧾</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Monto hoy</div>
+        <div class="value green" id="stat-monto">–</div>
+        <div class="icon-bg">💰</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ticket promedio</div>
+        <div class="value" id="stat-promedio">–</div>
+        <div class="icon-bg">📈</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Alertas de stock</div>
+        <div class="value" id="stat-alertas" style="color:var(--red)">–</div>
+        <div class="icon-bg">⚠️</div>
+      </div>
+    </div>
+
+    <div class="grid-2 mb-24">
+
+      <!-- Top productos hoy -->
+      <div class="card">
+        <div class="card-title">🏆 Top productos hoy</div>
+        <div id="top-productos">
+          <div class="empty-state"><div class="icon">📦</div><p>Sin ventas registradas hoy</p></div>
+        </div>
+      </div>
+
+      <!-- Alertas de stock -->
+      <div class="card">
+        <div class="card-title">⚠️ Stock bajo</div>
+        <div id="stock-alertas">
+          <div class="empty-state"><div class="icon">✅</div><p>Todo el stock en orden</p></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div class="card">
+      <div class="card-title">⚡ Acciones rápidas</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <a href="/ticket.html" class="btn btn-primary btn-lg">🧾 Nueva Venta</a>
+        <a href="/productos.html" class="btn btn-secondary btn-lg">📦 Gestionar Productos</a>
+        <a href="/reportes.html" class="btn btn-secondary btn-lg">📊 Ver Reportes</a>
+        <button class="btn btn-ghost btn-lg" id="btn-cierre">🔒 Cierre del Día</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal cierre del día -->
+<div class="modal-overlay" id="modal-cierre">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔒 Cierre del Día</div>
+      <button class="modal-close" onclick="closeModal('modal-cierre')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--text-muted);margin-bottom:16px;font-size:14px">Esto va a registrar el cierre de caja del día de hoy y guardar el resumen para comparativas.</p>
+      <div id="resumen-cierre" style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;font-size:14px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-cierre')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-confirmar-cierre">Confirmar Cierre</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+  async function loadDashboard() {
+    // Stats del día
+    const r = await API.get('/reportes/hoy');
+    if (r.ok) {
+      const d = r.data;
+      document.getElementById('stat-ventas').textContent = d.total_ventas;
+      document.getElementById('stat-monto').textContent = fmt.currency(d.total_monto);
+      document.getElementById('stat-promedio').textContent = fmt.currency(d.ticket_promedio);
+
+      // Top productos
+      if (d.top_productos && d.top_productos.length) {
+        document.getElementById('top-productos').innerHTML = d.top_productos.map(p => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:14px">${p.producto_nombre}</span>
+            <div style="text-align:right">
+              <div style="font-size:12px;color:var(--text-muted)">${p.cantidad} unid.</div>
+              <div style="font-size:13px;color:var(--accent);font-weight:600">${fmt.currency(p.total)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Stock bajo
+    const s = await API.get('/productos/alertas/stock-bajo');
+    if (s.ok) {
+      document.getElementById('stat-alertas').textContent = s.data.length;
+      if (s.data.length) {
+        document.getElementById('stock-alertas').innerHTML = s.data.slice(0,6).map(p => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:14px">${p.nombre}</span>
+            <span class="badge badge-red">Stock: ${p.stock}</span>
+          </div>
+        `).join('');
+      } else {
+        document.getElementById('stat-alertas').textContent = '0';
+        document.getElementById('stat-alertas').style.color = 'var(--green)';
+      }
+    }
+  }
+
+  // Cierre del día
+  document.getElementById('btn-cierre').addEventListener('click', async () => {
+    const r = await API.get('/reportes/hoy');
+    if (r.ok) {
+      const d = r.data;
+      document.getElementById('resumen-cierre').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Total ventas</div><div style="font-size:22px;font-weight:700;color:var(--accent)">${d.total_ventas}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Total monto</div><div style="font-size:22px;font-weight:700;color:var(--green)">${fmt.currency(d.total_monto)}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Items vendidos</div><div style="font-size:22px;font-weight:700">${d.total_items}</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Ticket promedio</div><div style="font-size:22px;font-weight:700">${fmt.currency(d.ticket_promedio)}</div></div>
+        </div>
+      `;
+    }
+    openModal('modal-cierre');
+  });
+
+  document.getElementById('btn-confirmar-cierre').addEventListener('click', async () => {
+    const r = await API.post('/reportes/cierre-dia', {});
+    if (r.ok) {
+      toast('Cierre del día registrado correctamente', 'success');
+      closeModal('modal-cierre');
+    } else {
+      toast('Error al registrar el cierre: ' + r.error, 'error');
+    }
+  });
+
+  loadDashboard();
+</script>
+</body>
+</html>

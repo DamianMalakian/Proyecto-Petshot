@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nueva Venta – Colitas Felices</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ticket-layout { display: grid; grid-template-columns: 1fr 400px; gap: 24px; align-items: start; }
+    .product-card {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); cursor: pointer;
+      transition: all var(--transition); background: var(--surface2);
+      gap: 8px;
+    }
+    .product-card:hover { border-color: var(--accent); background: var(--accent-glow); }
+    .product-card.kilo-card { border-left: 3px solid var(--accent-dim); }
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 8px; max-height: 58vh; overflow-y: auto; padding-right: 4px;
+    }
+    .cart-item { display: flex; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .cart-item:last-child { border-bottom: none; }
+    .qty-btn {
+      background: var(--surface3); border: none; color: var(--text);
+      width: 26px; height: 26px; border-radius: 4px; cursor: pointer;
+      font-size: 15px; display: flex; align-items: center; justify-content: center;
+      transition: background var(--transition); flex-shrink: 0;
+    }
+    .qty-btn:hover { background: var(--accent); color: #1a1700; }
+    .ticket-total { border-top: 2px solid var(--accent); padding-top: 14px; margin-top: 8px; }
+    .kg-input {
+      width: 68px; background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); padding: 3px 6px;
+      font-size: 13px; text-align: right;
+    }
+    .kg-input:focus { outline: none; border-color: var(--accent); }
+    .desc-pct-wrap { display: flex; align-items: center; gap: 6px; }
+    .desc-pct-wrap input { width: 70px; text-align: right; }
+    @media print {
+      body > * { display: none !important; }
+      .ticket-print { display: block !important; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span>🐾</span> Colitas Felices</div>
+    <div class="sub">Sistema de facturación</div>
+  </div>
+  <div class="nav">
+    <a href="/"><span class="icon">⊞</span> Dashboard</a>
+    <a href="/ticket.html"><span class="icon">🧾</span> Nueva Venta</a>
+    <a href="/productos.html"><span class="icon">📦</span> Productos</a>
+    <a href="/historial.html"><span class="icon">📋</span> Historial</a>
+    <a href="/reportes.html"><span class="icon">📊</span> Reportes</a>
+  </div>
+  <div class="sidebar-footer">v1.0 &mdash; 2025</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Nueva Venta</h1>
+    <span class="fecha" id="fecha-hoy"></span>
+  </div>
+
+  <div class="content">
+    <div class="ticket-layout">
+
+      <!-- Panel izquierdo: Catálogo -->
+      <div>
+        <div class="search-bar mb-16">
+          <input type="text" class="form-control" id="buscar-prod" placeholder="🔍 Buscar producto..." oninput="filtrarProductos()">
+          <select class="form-control" id="filtro-cat" onchange="filtrarProductos()" style="max-width:160px">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="product-grid" id="product-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-dim)"><div class="loader"></div></div>
+        </div>
+      </div>
+
+      <!-- Panel derecho: Carrito -->
+      <div>
+        <div class="card" style="position:sticky;top:80px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div class="card-title mb-0">🧾 Ticket</div>
+            <span id="cart-count" style="font-size:12px;color:var(--text-muted)">0 / 20 productos</span>
+          </div>
+
+          <div class="form-group">
+            <label>Cliente (opcional)</label>
+            <input type="text" class="form-control" id="cliente" placeholder="Consumidor Final">
+          </div>
+
+          <div id="cart-items" style="min-height:50px;margin-bottom:8px;max-height:36vh;overflow-y:auto">
+            <div class="empty-state" style="padding:20px"><div class="icon">🛒</div><p>Hacé click en un producto</p></div>
+          </div>
+
+          <div class="ticket-total">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:14px">
+              <span style="color:var(--text-muted)">Subtotal</span>
+              <span id="subtotal-display">$0,00</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:14px">
+              <span style="color:var(--text-muted)">Descuento</span>
+              <div class="desc-pct-wrap">
+                <input type="number" id="descuento-pct" class="form-control" value="0" min="0" max="100" step="1"
+                  style="width:70px;text-align:right" oninput="actualizarTotal()">
+                <span style="color:var(--text-muted)">%</span>
+                <span id="descuento-monto" style="font-size:12px;color:var(--red);min-width:60px;text-align:right"></span>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px">TOTAL</span>
+              <span id="total-display" style="font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--accent)">$0,00</span>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:14px;margin-bottom:8px">
+            <label>Observaciones</label>
+            <input type="text" class="form-control" id="observaciones" placeholder="Nota interna...">
+          </div>
+
+          <button class="btn btn-primary btn-lg" style="width:100%" onclick="confirmarVenta()">✓ Confirmar Venta</button>
+          <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="limpiarCarrito()">Limpiar carrito</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal ticket -->
+<div class="modal-overlay" id="modal-ticket">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">✅ Venta registrada</div>
+      <button class="modal-close" onclick="closeModal('modal-ticket')">×</button>
+    </div>
+    <div class="modal-body" id="ticket-preview" style="font-family:'Courier New',monospace;font-size:13px;line-height:1.9;background:var(--surface2);border-radius:var(--radius-sm);padding:16px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-ticket')">Cerrar</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<div class="ticket-print" id="ticket-print-content" style="display:none"></div>
+
+<script src="/js/app.js"></script>
+<script>
+let todosProductos = [];
+let carrito = []; // { producto_id, nombre, precio, tipo_stock, cantidad, cantidad_kg, stock, stock_kg }
+
+const MAX_PRODUCTOS = 20;
+const MAX_UNIDADES  = 12;
+
+async function cargarCatalogo() {
+  const r = await API.get('/productos?activo=true');
+  if (!r.ok) return;
+  todosProductos = r.data;
+  renderProductos(todosProductos);
+
+  const catR = await API.get('/productos/meta/categorias');
+  if (catR.ok) {
+    catR.data.forEach(c => {
+      document.getElementById('filtro-cat').innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+    });
+  }
+}
+
+function filtrarProductos() {
+  const buscar = document.getElementById('buscar-prod').value.toLowerCase();
+  const cat = document.getElementById('filtro-cat').value;
+  const filtrados = todosProductos.filter(p =>
+    (!buscar || p.nombre.toLowerCase().includes(buscar)) &&
+    (!cat || p.categoria_id == cat)
+  );
+  renderProductos(filtrados);
+}
+
+function renderProductos(lista) {
+  const grid = document.getElementById('product-grid');
+  if (!lista.length) {
+    grid.innerHTML = `<div style="grid-column:1/-1"><div class="empty-state"><div class="icon">🔍</div><p>Sin resultados</p></div></div>`;
+    return;
+  }
+  grid.innerHTML = lista.map(p => {
+    const esKilo = p.tipo_stock === 'kilo';
+    const stockInfo = esKilo
+      ? `⚖️ Stock: ${parseFloat(p.stock_kg).toFixed(2)} kg`
+      : `Stock: ${p.stock}`;
+    const sinStock = esKilo ? parseFloat(p.stock_kg) <= 0 : p.stock <= 0;
+    return `
+      <div class="product-card ${esKilo ? 'kilo-card' : ''} ${sinStock ? 'opacity:0.5' : ''}"
+           onclick="${sinStock ? '' : `agregarAlCarrito(${p.id})`}"
+           style="${sinStock ? 'opacity:0.45;cursor:not-allowed' : ''}">
+        <div style="min-width:0">
+          <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${stockInfo}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-weight:700;color:var(--accent);font-size:14px">${fmt.currency(p.precio)}</div>
+          ${esKilo ? '<div style="font-size:10px;color:var(--text-dim)">/kg</div>' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function agregarAlCarrito(id) {
+  const prod = todosProductos.find(p => p.id === id);
+  if (!prod) return;
+
+  const enCarrito = carrito.filter(i => i.producto_id !== id).length;
+  const yaEsta = carrito.find(i => i.producto_id === id);
+
+  if (!yaEsta && carrito.length >= MAX_PRODUCTOS) {
+    return toast(`Máximo ${MAX_PRODUCTOS} productos por ticket`, 'error');
+  }
+
+  if (prod.tipo_stock === 'kilo') {
+    if (!yaEsta) {
+      carrito.push({ producto_id: id, nombre: prod.nombre, precio: prod.precio, tipo_stock: 'kilo', cantidad_kg: 0.5, stock_kg: parseFloat(prod.stock_kg) });
+    }
+    // Para kilo no suma automático, el usuario ingresa el peso en el input
+  } else {
+    if (yaEsta) {
+      if (yaEsta.cantidad >= MAX_UNIDADES) return toast(`Máximo ${MAX_UNIDADES} unidades por producto`, 'error');
+      if (yaEsta.cantidad >= prod.stock) return toast('Sin stock suficiente', 'error');
+      yaEsta.cantidad++;
+    } else {
+      if (prod.stock <= 0) return toast('Sin stock disponible', 'error');
+      carrito.push({ producto_id: id, nombre: prod.nombre, precio: prod.precio, tipo_stock: 'unidad', cantidad: 1, stock: prod.stock });
+    }
+  }
+  renderCarrito();
+}
+
+function cambiarCantidad(id, delta) {
+  const item = carrito.find(i => i.producto_id === id);
+  if (!item) return;
+  const nuevo = item.cantidad + delta;
+  if (nuevo <= 0) { carrito = carrito.filter(i => i.producto_id !== id); }
+  else if (nuevo > MAX_UNIDADES) { toast(`Máximo ${MAX_UNIDADES} unidades`, 'error'); return; }
+  else if (nuevo > item.stock) { toast('Sin stock suficiente', 'error'); return; }
+  else { item.cantidad = nuevo; }
+  renderCarrito();
+}
+
+function actualizarKg(id, val) {
+  const item = carrito.find(i => i.producto_id === id);
+  if (!item) return;
+  const kg = parseFloat(val);
+  if (isNaN(kg) || kg <= 0) { item.cantidad_kg = 0; }
+  else if (kg > item.stock_kg) { toast(`Stock disponible: ${item.stock_kg} kg`, 'error'); item.cantidad_kg = item.stock_kg; document.getElementById(`kg-${id}`).value = item.stock_kg; }
+  else { item.cantidad_kg = kg; }
+  actualizarTotal();
+}
+
+function eliminarItem(id) {
+  carrito = carrito.filter(i => i.producto_id !== id);
+  renderCarrito();
+}
+
+function renderCarrito() {
+  const el = document.getElementById('cart-items');
+  document.getElementById('cart-count').textContent = `${carrito.length} / ${MAX_PRODUCTOS} productos`;
+
+  if (!carrito.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:20px"><div class="icon">🛒</div><p>Hacé click en un producto</p></div>`;
+    actualizarTotal();
+    return;
+  }
+
+  el.innerHTML = carrito.map(i => {
+    if (i.tipo_stock === 'kilo') {
+      const sub = i.precio * (i.cantidad_kg || 0);
+      return `
+        <div class="cart-item">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.nombre}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${fmt.currency(i.precio)}/kg</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+            <input type="number" id="kg-${i.producto_id}" class="kg-input" value="${i.cantidad_kg || ''}"
+              min="0.001" max="${i.stock_kg}" step="0.001" placeholder="kg"
+              oninput="actualizarKg(${i.producto_id}, this.value)">
+            <span style="font-size:11px;color:var(--text-muted)">kg</span>
+          </div>
+          <div style="width:70px;text-align:right;font-weight:600;color:var(--accent);font-size:13px">${fmt.currency(sub)}</div>
+          <button class="qty-btn" style="background:var(--red-dim);color:var(--red)" onclick="eliminarItem(${i.producto_id})">×</button>
+        </div>
+      `;
+    } else {
+      return `
+        <div class="cart-item">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${i.nombre}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${fmt.currency(i.precio)} c/u</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+            <button class="qty-btn" onclick="cambiarCantidad(${i.producto_id}, -1)">−</button>
+            <span style="width:22px;text-align:center;font-weight:600;font-size:14px">${i.cantidad}</span>
+            <button class="qty-btn" onclick="cambiarCantidad(${i.producto_id}, 1)">+</button>
+          </div>
+          <div style="width:70px;text-align:right;font-weight:600;color:var(--accent);font-size:13px">${fmt.currency(i.precio * i.cantidad)}</div>
+        </div>
+      `;
+    }
+  }).join('');
+  actualizarTotal();
+}
+
+function actualizarTotal() {
+  const subtotal = carrito.reduce((s, i) => {
+    if (i.tipo_stock === 'kilo') return s + i.precio * (i.cantidad_kg || 0);
+    return s + i.precio * i.cantidad;
+  }, 0);
+  const pct = Math.min(Math.max(parseFloat(document.getElementById('descuento-pct').value) || 0, 0), 100);
+  const descMonto = subtotal * (pct / 100);
+  const total = subtotal - descMonto;
+
+  document.getElementById('subtotal-display').textContent = fmt.currency(subtotal);
+  document.getElementById('total-display').textContent = fmt.currency(total);
+  document.getElementById('descuento-monto').textContent = pct > 0 ? `-${fmt.currency(descMonto)}` : '';
+}
+
+function limpiarCarrito() {
+  carrito = [];
+  document.getElementById('descuento-pct').value = 0;
+  renderCarrito();
+}
+
+async function confirmarVenta() {
+  if (!carrito.length) return toast('El carrito está vacío', 'error');
+
+  // Validar items kilo
+  for (const i of carrito) {
+    if (i.tipo_stock === 'kilo' && (!i.cantidad_kg || i.cantidad_kg <= 0)) {
+      return toast(`Ingresá el peso para "${i.nombre}"`, 'error');
+    }
+  }
+
+  const btn = document.querySelector('button[onclick="confirmarVenta()"]');
+  btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Procesando...';
+
+  const items = carrito.map(i => i.tipo_stock === 'kilo'
+    ? { producto_id: i.producto_id, cantidad_kg: i.cantidad_kg }
+    : { producto_id: i.producto_id, cantidad: i.cantidad }
+  );
+
+  const body = {
+    cliente_nombre: document.getElementById('cliente').value || 'Consumidor Final',
+    items,
+    descuento_pct: parseFloat(document.getElementById('descuento-pct').value) || 0,
+    observaciones: document.getElementById('observaciones').value,
+  };
+
+  const r = await API.post('/ventas', body);
+  btn.disabled = false; btn.innerHTML = '✓ Confirmar Venta';
+  if (!r.ok) return toast('Error: ' + r.error, 'error');
+
+  // Armar ticket visual
+  const subtotal = carrito.reduce((s, i) => i.tipo_stock === 'kilo' ? s + i.precio * i.cantidad_kg : s + i.precio * i.cantidad, 0);
+  const linea = '─'.repeat(34);
+  const ticketHTML = `
+    <div style="text-align:center;margin-bottom:8px">
+      <div style="font-size:16px;font-weight:700">🐾 Colitas Felices</div>
+    </div>
+    <div style="color:var(--text-muted)">${linea}</div>
+    <div>Ticket: <strong>${r.numero_ticket}</strong></div>
+    <div>Fecha: ${fmt.datetime(new Date())}</div>
+    <div>Cliente: ${body.cliente_nombre}</div>
+    <div style="color:var(--text-muted)">${linea}</div>
+    ${carrito.map(i => {
+      if (i.tipo_stock === 'kilo') {
+        return `<div style="display:flex;justify-content:space-between"><span>${i.nombre} ${i.cantidad_kg}kg</span><span>${fmt.currency(i.precio * i.cantidad_kg)}</span></div>`;
+      }
+      return `<div style="display:flex;justify-content:space-between"><span>${i.nombre} x${i.cantidad}</span><span>${fmt.currency(i.precio * i.cantidad)}</span></div>`;
+    }).join('')}
+    <div style="color:var(--text-muted)">${linea}</div>
+    ${r.descuento_pct > 0 ? `
+      <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${fmt.currency(subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;color:var(--red)"><span>Descuento ${r.descuento_pct}%</span><span>-${fmt.currency(r.descuento_monto)}</span></div>
+    ` : ''}
+    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;margin-top:4px">
+      <span>TOTAL</span><span style="color:var(--accent)">${fmt.currency(r.total)}</span>
+    </div>
+    ${body.observaciones ? `<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Obs: ${body.observaciones}</div>` : ''}
+    <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--text-muted)">¡Gracias por su compra! 🐾</div>
+  `;
+  document.getElementById('ticket-preview').innerHTML = ticketHTML;
+  document.getElementById('ticket-print-content').innerHTML = ticketHTML;
+  openModal('modal-ticket');
+  toast('Venta registrada correctamente', 'success');
+
+  limpiarCarrito();
+  document.getElementById('cliente').value = '';
+  document.getElementById('observaciones').value = '';
+  await cargarCatalogo();
+}
+
+cargarCatalogo();
+</script>
+</body>
+</html>

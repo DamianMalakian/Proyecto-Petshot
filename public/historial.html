@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historial – PetStore</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span>🐾</span> PetStore</div>
+    <div class="sub">Sistema de facturación</div>
+  </div>
+  <div class="nav">
+    <a href="/"><span class="icon">⊞</span> Dashboard</a>
+    <a href="/ticket.html"><span class="icon">🧾</span> Nueva Venta</a>
+    <a href="/productos.html"><span class="icon">📦</span> Productos</a>
+    <a href="/historial.html"><span class="icon">📋</span> Historial</a>
+    <a href="/reportes.html"><span class="icon">📊</span> Reportes</a>
+  </div>
+  <div class="sidebar-footer">v1.0 &mdash; 2025</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Historial de Ventas</h1>
+    <span class="fecha" id="fecha-hoy"></span>
+  </div>
+
+  <div class="content">
+
+    <!-- Filtros -->
+    <div class="search-bar mb-24">
+      <div class="form-group mb-0">
+        <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Desde</label>
+        <input type="date" class="form-control" id="filtro-desde" style="max-width:160px">
+      </div>
+      <div class="form-group mb-0">
+        <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Hasta</label>
+        <input type="date" class="form-control" id="filtro-hasta" style="max-width:160px">
+      </div>
+      <div class="form-group mb-0">
+        <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Estado</label>
+        <select class="form-control" id="filtro-estado" style="max-width:140px">
+          <option value="">Todos</option>
+          <option value="completada">Completadas</option>
+          <option value="anulada">Anuladas</option>
+        </select>
+      </div>
+      <div style="padding-top:22px">
+        <button class="btn btn-primary" onclick="cargarVentas()">Buscar</button>
+        <button class="btn btn-ghost" onclick="limpiarFiltros()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th class="text-right">Descuento</th>
+            <th class="text-right">Total</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ventas">
+          <tr><td colspan="7" class="text-center" style="padding:32px;color:var(--text-dim)"><div class="loader"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="paginacion" style="display:flex;justify-content:center;gap:8px;margin-top:16px"></div>
+
+  </div>
+</div>
+
+<!-- Modal detalle de venta -->
+<div class="modal-overlay" id="modal-venta">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-venta-title">Detalle de Venta</div>
+      <button class="modal-close" onclick="closeModal('modal-venta')">×</button>
+    </div>
+    <div class="modal-body" id="modal-venta-body"></div>
+    <div class="modal-footer" id="modal-venta-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-venta')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+let paginaActual = 1;
+
+function limpiarFiltros() {
+  document.getElementById('filtro-desde').value = '';
+  document.getElementById('filtro-hasta').value = '';
+  document.getElementById('filtro-estado').value = '';
+  paginaActual = 1;
+  cargarVentas();
+}
+
+async function cargarVentas(pagina = 1) {
+  paginaActual = pagina;
+  const desde = document.getElementById('filtro-desde').value;
+  const hasta = document.getElementById('filtro-hasta').value;
+  const estado = document.getElementById('filtro-estado').value;
+
+  let url = `/ventas?limite=20&pagina=${pagina}`;
+  if (desde) url += `&desde=${desde}`;
+  if (hasta) url += `&hasta=${hasta}`;
+  if (estado) url += `&estado=${estado}`;
+
+  const r = await API.get(url);
+  const tbody = document.getElementById('tbody-ventas');
+
+  if (!r.ok || !r.data.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📋</div><p>Sin ventas en este período</p></div></td></tr>`;
+    document.getElementById('paginacion').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = r.data.map(v => `
+    <tr>
+      <td><span class="font-mono text-accent">${v.numero_ticket}</span></td>
+      <td>${fmt.datetime(v.creado_en)}</td>
+      <td>${v.cliente_nombre}</td>
+      <td class="text-right">${v.descuento > 0 ? `<span class="text-red">-${fmt.currency(v.descuento)}</span>` : '—'}</td>
+      <td class="text-right"><strong>${fmt.currency(v.total)}</strong></td>
+      <td>
+        <span class="badge ${v.estado === 'completada' ? 'badge-green' : v.estado === 'anulada' ? 'badge-red' : 'badge-yellow'}">
+          ${v.estado}
+        </span>
+      </td>
+      <td style="text-align:right">
+        <button class="btn btn-ghost btn-sm" onclick="verDetalle(${v.id})">Ver</button>
+        ${v.estado === 'completada' ? `<button class="btn btn-danger btn-sm" onclick="anularVenta(${v.id})">Anular</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+
+  // Paginación simple
+  const pag = document.getElementById('paginacion');
+  pag.innerHTML = '';
+  if (pagina > 1) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.textContent = '← Anterior';
+    btn.onclick = () => cargarVentas(pagina - 1);
+    pag.appendChild(btn);
+  }
+  if (r.data.length === 20) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost btn-sm';
+    btn.textContent = 'Siguiente →';
+    btn.onclick = () => cargarVentas(pagina + 1);
+    pag.appendChild(btn);
+  }
+}
+
+async function verDetalle(id) {
+  const r = await API.get(`/ventas/${id}`);
+  if (!r.ok) return toast('Error al cargar venta', 'error');
+  const v = r.data;
+
+  document.getElementById('modal-venta-title').textContent = `Ticket ${v.numero_ticket}`;
+  document.getElementById('modal-venta-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Fecha</div>
+        <div style="font-size:14px">${fmt.datetime(v.creado_en)}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Cliente</div>
+        <div style="font-size:14px">${v.cliente_nombre}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Estado</div>
+        <span class="badge ${v.estado === 'completada' ? 'badge-green' : 'badge-red'}">${v.estado}</span>
+      </div>
+      ${v.observaciones ? `<div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Observaciones</div>
+        <div style="font-size:14px">${v.observaciones}</div>
+      </div>` : ''}
+    </div>
+
+    <div class="table-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr><th>Producto</th><th class="text-right">Cant.</th><th class="text-right">P. Unit.</th><th class="text-right">Subtotal</th></tr></thead>
+        <tbody>
+          ${v.items.map(i => `
+            <tr>
+              <td>${i.producto_nombre}</td>
+              <td class="text-right">${i.cantidad}</td>
+              <td class="text-right">${fmt.currency(i.precio_unitario)}</td>
+              <td class="text-right"><strong>${fmt.currency(i.subtotal)}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px">
+      ${v.descuento > 0 ? `
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:14px">
+          <span style="color:var(--text-muted)">Subtotal</span><span>${fmt.currency(v.subtotal)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:14px">
+          <span style="color:var(--red)">Descuento</span><span style="color:var(--red)">-${fmt.currency(v.descuento)}</span>
+        </div>
+      ` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800">
+        <span>TOTAL</span><span style="color:var(--accent)">${fmt.currency(v.total)}</span>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modal-venta-footer').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModal('modal-venta')">Cerrar</button>
+    ${v.estado === 'completada' ? `<button class="btn btn-danger" onclick="anularVenta(${v.id})">Anular Venta</button>` : ''}
+  `;
+  openModal('modal-venta');
+}
+
+async function anularVenta(id) {
+  if (!confirm('¿Seguro que querés anular esta venta? Se va a restaurar el stock.')) return;
+  const r = await API.put(`/ventas/${id}/anular`, {});
+  if (r.ok) {
+    toast('Venta anulada y stock restaurado', 'success');
+    closeModal('modal-venta');
+    cargarVentas(paginaActual);
+  } else {
+    toast('Error: ' + r.error, 'error');
+  }
+}
+
+// Defaults: desde hace 7 días
+const hoy = new Date();
+const hace7 = new Date(hoy);
+hace7.setDate(hace7.getDate() - 7);
+document.getElementById('filtro-desde').value = hace7.toISOString().slice(0, 10);
+document.getElementById('filtro-hasta').value = hoy.toISOString().slice(0, 10);
+
+cargarVentas();
+</script>
+</body>
+</html>

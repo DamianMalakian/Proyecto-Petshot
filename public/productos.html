@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productos – PetStore</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ganancia-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--green-dim); color: var(--green);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 13px; font-weight: 700; min-width: 56px;
+    }
+    .precio-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+    .stock-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tipo-toggle { display: flex; gap: 8px; }
+    .tipo-btn {
+      flex: 1; padding: 8px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text-muted); cursor: pointer; font-size: 13px; font-weight: 500;
+      transition: all var(--transition); text-align: center;
+    }
+    .tipo-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+    .cat-row { display: flex; align-items: center; gap: 8px; }
+    .cat-row select { flex: 1; }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand"><span>🐾</span> PetStore</div>
+    <div class="sub">Sistema de facturación</div>
+  </div>
+  <div class="nav">
+    <a href="/"><span class="icon">⊞</span> Dashboard</a>
+    <a href="/ticket.html"><span class="icon">🧾</span> Nueva Venta</a>
+    <a href="/productos.html"><span class="icon">📦</span> Productos</a>
+    <a href="/historial.html"><span class="icon">📋</span> Historial</a>
+    <a href="/reportes.html"><span class="icon">📊</span> Reportes</a>
+  </div>
+  <div class="sidebar-footer">v1.0 &mdash; 2025</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <h1>Productos</h1>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="openModal('modal-categorias')">🏷 Categorías</button>
+      <button class="btn btn-primary" onclick="abrirModalNuevo()">+ Nuevo Producto</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="search-bar">
+      <input type="text" class="form-control" id="buscar" placeholder="🔍 Buscar producto..." oninput="cargarProductos()">
+      <select class="form-control" id="filtro-cat" onchange="cargarProductos()" style="max-width:200px">
+        <option value="">Todas las categorías</option>
+      </select>
+      <select class="form-control" id="filtro-tipo" onchange="cargarProductos()" style="max-width:160px">
+        <option value="">Todos los tipos</option>
+        <option value="unidad">Por unidad</option>
+        <option value="kilo">Por kilo</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="toggleInactivos()" id="btn-inactivos">Ver inactivos</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Categoría</th>
+            <th>Tipo</th>
+            <th class="text-right">P. Costo</th>
+            <th class="text-right">P. Final</th>
+            <th class="text-right">Ganancia</th>
+            <th class="text-right">Stock</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbody-productos">
+          <tr><td colspan="9" class="text-center" style="padding:32px;color:var(--text-dim)"><div class="loader"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Producto ── -->
+<div class="modal-overlay" id="modal-producto">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-producto-title">Nuevo Producto</div>
+      <button class="modal-close" onclick="closeModal('modal-producto')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="prod-id">
+
+      <!-- Nombre -->
+      <div class="form-group">
+        <label>Nombre del producto *</label>
+        <input type="text" class="form-control" id="prod-nombre" placeholder="Ej: Balanceado Adulto Premium">
+      </div>
+
+      <!-- Descripción -->
+      <div class="form-group">
+        <label>Descripción (opcional)</label>
+        <input type="text" class="form-control" id="prod-desc" placeholder="Descripción breve">
+      </div>
+
+      <!-- Categoría -->
+      <div class="form-group">
+        <label>Categoría</label>
+        <div class="cat-row">
+          <select class="form-control" id="prod-categoria">
+            <option value="">Sin categoría</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tipo de stock -->
+      <div class="form-group">
+        <label>Tipo de venta *</label>
+        <div class="tipo-toggle">
+          <button type="button" class="tipo-btn active" id="tipo-unidad" onclick="setTipo('unidad')">📦 Por unidad</button>
+          <button type="button" class="tipo-btn" id="tipo-kilo" onclick="setTipo('kilo')">⚖️ Por kilo (precio/kg)</button>
+        </div>
+      </div>
+      <input type="hidden" id="prod-tipo" value="unidad">
+
+      <!-- Precios -->
+      <div class="precio-row">
+        <div class="form-group mb-0">
+          <label>Precio costo ($)</label>
+          <input type="number" class="form-control" id="prod-precio-costo" placeholder="0.00" min="0" step="0.01" oninput="calcGanancia()">
+        </div>
+        <div class="form-group mb-0">
+          <label>Precio final ($) *</label>
+          <input type="number" class="form-control" id="prod-precio" placeholder="0.00" min="0" step="0.01" oninput="calcGanancia()">
+        </div>
+        <div class="form-group mb-0" style="min-width:80px">
+          <label style="white-space:nowrap">% Ganancia</label>
+          <div style="padding:8px 0">
+            <span class="ganancia-badge" id="ganancia-pct">— %</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:16px"></div>
+
+      <!-- Stock -->
+      <div class="stock-row" id="stock-unidad-row">
+        <div class="form-group mb-0">
+          <label>Stock unidades actual</label>
+          <input type="number" class="form-control" id="prod-stock" placeholder="0" min="0">
+        </div>
+        <div class="form-group mb-0">
+          <label>Stock mínimo (alerta)</label>
+          <input type="number" class="form-control" id="prod-stock-min" placeholder="5" min="0">
+        </div>
+      </div>
+      <div class="stock-row" id="stock-kilo-row" style="display:none">
+        <div class="form-group mb-0">
+          <label>Stock kilos actual (kg)</label>
+          <input type="number" class="form-control" id="prod-stock-kg" placeholder="0.000" min="0" step="0.001">
+        </div>
+        <div class="form-group mb-0">
+          <label>Stock mínimo (kg)</label>
+          <input type="number" class="form-control" id="prod-stock-min-kg" placeholder="0.5" min="0" step="0.001">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-producto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Categorías ── -->
+<div class="modal-overlay" id="modal-categorias">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">🏷 Gestión de Categorías</div>
+      <button class="modal-close" onclick="closeModal('modal-categorias')">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Nueva categoría -->
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <input type="text" class="form-control" id="cat-nueva-nombre" placeholder="Nueva categoría..." style="flex:1">
+        <button class="btn btn-primary" onclick="crearCategoria()">Agregar</button>
+      </div>
+      <!-- Lista -->
+      <div id="lista-categorias">
+        <div class="loader"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-categorias')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar categoría -->
+<div class="modal-overlay" id="modal-edit-cat">
+  <div class="modal" style="max-width:340px">
+    <div class="modal-header">
+      <div class="modal-title">Editar Categoría</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-cat')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-cat-id">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input type="text" class="form-control" id="edit-cat-nombre">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-cat')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCategoria()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+<script>
+let mostrarInactivos = false;
+let categorias = [];
+
+// ── Cálculo de ganancia ──
+function calcGanancia() {
+  const costo = parseFloat(document.getElementById('prod-precio-costo').value) || 0;
+  const final = parseFloat(document.getElementById('prod-precio').value) || 0;
+  const el = document.getElementById('ganancia-pct');
+  if (costo > 0 && final > 0) {
+    const pct = ((final - costo) / costo * 100).toFixed(1);
+    el.textContent = pct + '%';
+    el.style.background = final >= costo ? 'var(--green-dim)' : 'var(--red-dim)';
+    el.style.color = final >= costo ? 'var(--green)' : 'var(--red)';
+  } else {
+    el.textContent = '— %';
+    el.style.background = 'var(--green-dim)';
+    el.style.color = 'var(--green)';
+  }
+}
+
+// ── Tipo de stock ──
+function setTipo(tipo) {
+  document.getElementById('prod-tipo').value = tipo;
+  document.getElementById('tipo-unidad').classList.toggle('active', tipo === 'unidad');
+  document.getElementById('tipo-kilo').classList.toggle('active', tipo === 'kilo');
+  document.getElementById('stock-unidad-row').style.display = tipo === 'unidad' ? 'grid' : 'none';
+  document.getElementById('stock-kilo-row').style.display = tipo === 'kilo' ? 'grid' : 'none';
+}
+
+// ── Categorías ──
+async function cargarCategorias() {
+  const r = await API.get('/productos/meta/categorias');
+  if (!r.ok) return;
+  categorias = r.data;
+
+  const selFiltro = document.getElementById('filtro-cat');
+  const selModal = document.getElementById('prod-categoria');
+  const savedFiltro = selFiltro.value;
+
+  selFiltro.innerHTML = '<option value="">Todas las categorías</option>';
+  selModal.innerHTML = '<option value="">Sin categoría</option>';
+  categorias.forEach(c => {
+    selFiltro.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+    selModal.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+  });
+  selFiltro.value = savedFiltro;
+}
+
+async function renderListaCategorias() {
+  const r = await API.get('/productos/meta/categorias');
+  const el = document.getElementById('lista-categorias');
+  if (!r.ok || !r.data.length) {
+    el.innerHTML = '<p style="color:var(--text-muted);font-size:14px">Sin categorías creadas.</p>';
+    return;
+  }
+  el.innerHTML = r.data.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:14px;font-weight:500">${c.nombre}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="abrirEditCat(${c.id},'${c.nombre.replace(/'/g,"\\'")}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarCategoria(${c.id})">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function abrirEditCat(id, nombre) {
+  document.getElementById('edit-cat-id').value = id;
+  document.getElementById('edit-cat-nombre').value = nombre;
+  openModal('modal-edit-cat');
+}
+
+async function guardarCategoria() {
+  const id = document.getElementById('edit-cat-id').value;
+  const nombre = document.getElementById('edit-cat-nombre').value.trim();
+  if (!nombre) return;
+  const r = await API.put(`/productos/meta/categorias/${id}`, { nombre });
+  if (r.ok) {
+    toast('Categoría actualizada', 'success');
+    closeModal('modal-edit-cat');
+    await cargarCategorias();
+    renderListaCategorias();
+  } else toast('Error: ' + r.error, 'error');
+}
+
+async function crearCategoria() {
+  const nombre = document.getElementById('cat-nueva-nombre').value.trim();
+  if (!nombre) return;
+  const r = await API.post('/productos/meta/categorias', { nombre });
+  if (r.ok) {
+    toast('Categoría creada', 'success');
+    document.getElementById('cat-nueva-nombre').value = '';
+    await cargarCategorias();
+    renderListaCategorias();
+  } else toast('Error: ' + r.error, 'error');
+}
+
+async function eliminarCategoria(id) {
+  if (!confirm('¿Eliminar esta categoría?')) return;
+  const r = await API.delete(`/productos/meta/categorias/${id}`);
+  if (r.ok) {
+    toast('Categoría eliminada', 'success');
+    await cargarCategorias();
+    renderListaCategorias();
+  } else toast(r.error, 'error');
+}
+
+// Abrir modal categorías carga la lista
+document.getElementById('modal-categorias').addEventListener('click', function(e) {
+  if (e.target === this) return;
+});
+document.querySelector('[onclick="openModal(\'modal-categorias\')"]')?.addEventListener('click', renderListaCategorias);
+document.querySelector('button[onclick="openModal(\'modal-categorias\')"]');
+
+// ── Productos ──
+async function cargarProductos() {
+  const buscar = document.getElementById('buscar').value;
+  const cat = document.getElementById('filtro-cat').value;
+  const tipo = document.getElementById('filtro-tipo').value;
+  let url = `/productos?activo=${mostrarInactivos ? 'false' : 'true'}`;
+  if (buscar) url += `&buscar=${encodeURIComponent(buscar)}`;
+  if (cat) url += `&categoria=${cat}`;
+
+  const r = await API.get(url);
+  const tbody = document.getElementById('tbody-productos');
+
+  if (!r.ok || !r.data.length) {
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="icon">📦</div><p>Sin productos encontrados</p></div></td></tr>`;
+    return;
+  }
+
+  let data = r.data;
+  if (tipo) data = data.filter(p => p.tipo_stock === tipo);
+
+  tbody.innerHTML = data.map(p => {
+    const ganancia = p.precio_costo > 0
+      ? ((p.precio - p.precio_costo) / p.precio_costo * 100).toFixed(1) + '%'
+      : '—';
+    const stockDisplay = p.tipo_stock === 'kilo'
+      ? `<span class="${parseFloat(p.stock_kg) <= parseFloat(p.stock_minimo_kg) ? 'text-red' : 'text-green'}" style="font-weight:600">${parseFloat(p.stock_kg).toFixed(3)} kg</span>`
+      : `<span class="${p.stock <= p.stock_minimo ? 'text-red' : 'text-green'}" style="font-weight:600">${p.stock}</span><span style="font-size:11px;color:var(--text-dim)"> / mín ${p.stock_minimo}</span>`;
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:500">${p.nombre}</div>
+          ${p.descripcion ? `<div style="font-size:12px;color:var(--text-muted)">${p.descripcion}</div>` : ''}
+        </td>
+        <td><span class="badge badge-blue">${p.categoria_nombre || '—'}</span></td>
+        <td><span class="badge ${p.tipo_stock === 'kilo' ? 'badge-yellow' : 'badge-blue'}">${p.tipo_stock === 'kilo' ? '⚖️ Kilo' : '📦 Unidad'}</span></td>
+        <td class="text-right" style="color:var(--text-muted)">${p.precio_costo > 0 ? fmt.currency(p.precio_costo) : '—'}</td>
+        <td class="text-right"><strong class="text-accent">${fmt.currency(p.precio)}</strong></td>
+        <td class="text-right"><span class="ganancia-badge">${ganancia}</span></td>
+        <td class="text-right">${stockDisplay}</td>
+        <td><span class="badge ${p.activo ? 'badge-green' : 'badge-gray'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="editarProducto(${p.id})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="toggleActivo(${p.id}, ${p.activo})">${p.activo ? '🗑' : '✓'}</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function abrirModalNuevo() {
+  document.getElementById('modal-producto-title').textContent = 'Nuevo Producto';
+  document.getElementById('prod-id').value = '';
+  document.getElementById('prod-nombre').value = '';
+  document.getElementById('prod-desc').value = '';
+  document.getElementById('prod-precio-costo').value = '';
+  document.getElementById('prod-precio').value = '';
+  document.getElementById('prod-stock').value = '';
+  document.getElementById('prod-stock-min').value = '5';
+  document.getElementById('prod-stock-kg').value = '';
+  document.getElementById('prod-stock-min-kg').value = '0.5';
+  document.getElementById('prod-categoria').value = '';
+  setTipo('unidad');
+  calcGanancia();
+  openModal('modal-producto');
+}
+
+async function editarProducto(id) {
+  const r = await API.get(`/productos/${id}`);
+  if (!r.ok) return;
+  const p = r.data;
+  document.getElementById('modal-producto-title').textContent = 'Editar Producto';
+  document.getElementById('prod-id').value = p.id;
+  document.getElementById('prod-nombre').value = p.nombre;
+  document.getElementById('prod-desc').value = p.descripcion || '';
+  document.getElementById('prod-precio-costo').value = p.precio_costo || '';
+  document.getElementById('prod-precio').value = p.precio;
+  document.getElementById('prod-stock').value = p.stock;
+  document.getElementById('prod-stock-min').value = p.stock_minimo;
+  document.getElementById('prod-stock-kg').value = p.stock_kg || '';
+  document.getElementById('prod-stock-min-kg').value = p.stock_minimo_kg || '';
+  document.getElementById('prod-categoria').value = p.categoria_id || '';
+  setTipo(p.tipo_stock || 'unidad');
+  calcGanancia();
+  openModal('modal-producto');
+}
+
+async function guardarProducto() {
+  const id = document.getElementById('prod-id').value;
+  const nombre = document.getElementById('prod-nombre').value.trim();
+  const precio = document.getElementById('prod-precio').value;
+  const tipo = document.getElementById('prod-tipo').value;
+  if (!nombre || !precio) return toast('Nombre y precio final son obligatorios', 'error');
+
+  const body = {
+    nombre,
+    descripcion: document.getElementById('prod-desc').value,
+    categoria_id: document.getElementById('prod-categoria').value || null,
+    precio: parseFloat(precio),
+    precio_costo: parseFloat(document.getElementById('prod-precio-costo').value) || 0,
+    tipo_stock: tipo,
+    stock: tipo === 'unidad' ? (parseInt(document.getElementById('prod-stock').value) || 0) : 0,
+    stock_minimo: tipo === 'unidad' ? (parseInt(document.getElementById('prod-stock-min').value) || 5) : 0,
+    stock_kg: tipo === 'kilo' ? (parseFloat(document.getElementById('prod-stock-kg').value) || 0) : 0,
+    stock_minimo_kg: tipo === 'kilo' ? (parseFloat(document.getElementById('prod-stock-min-kg').value) || 0) : 0,
+  };
+
+  const r = id ? await API.put(`/productos/${id}`, body) : await API.post('/productos', body);
+  if (r.ok) {
+    toast(id ? 'Producto actualizado' : 'Producto creado', 'success');
+    closeModal('modal-producto');
+    cargarProductos();
+  } else toast('Error: ' + r.error, 'error');
+}
+
+async function toggleActivo(id, activo) {
+  if (!confirm(`¿Querés ${activo ? 'desactivar' : 'activar'} este producto?`)) return;
+  const r = activo ? await API.delete(`/productos/${id}`) : await API.put(`/productos/${id}`, { activo: 1 });
+  if (r.ok) { toast('Producto actualizado', 'success'); cargarProductos(); }
+  else toast('Error: ' + r.error, 'error');
+}
+
+function toggleInactivos() {
+  mostrarInactivos = !mostrarInactivos;
+  document.getElementById('btn-inactivos').textContent = mostrarInactivos ? 'Ver activos' : 'Ver inactivos';
+  cargarProductos();
+}
+
+// Botón categorías
+document.querySelector('button[onclick="openModal(\'modal-categorias\')"]').addEventListener('click', () => {
+  renderListaCategorias();
+  openModal('modal-categorias');
+});
+
+cargarCategorias().then(() => cargarProductos());
+</script>
+</body>
+</html>
