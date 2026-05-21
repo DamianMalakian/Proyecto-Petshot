@@ -1,0 +1,24 @@
+Cambios para la app de facturación Claude. Update 1.
+
+PAGINAS: en todas, ajustar el CSS para que tome el largo de la ventana. Los objetos del main quedan estancados al 60% del largo sin aprovechar el max, Lo que lleva a que las letras y números en algunos campos se visualicen feos o comprimidos.
+
+cambios para realizar en cada pagina por individual:
+
+Dashboard: Actualmente OK.
+
+Nueva venta:
+- Que el campo "descuento" no solicite un monto en precio ($), solicite un porcentaje (%) a descontar del subtotal. 
+- Que el ticket tenga un "Maximo" de 20 productos, también se puedan agregar hasta 12 unidades de cada.
+- En el carrito, van a haber productos que se venden por kilaje, necesito que en estos productos la app te permita ingresar como floats el peso exacto a cobrar.
+
+Productos:
+Que en la ventana principal, tenga una opción de editar categorías, para poder agregar o borrar categorías y luego poder asignarlas correctamente a los productos.
+En la ventana donde se ingresan los datos para agregar o editar un producto:
+-Necesito que tengan 1 campo más de stock (stock kilo actual) pero que mida por peso (kg), ya que la tienda vende productos por pesaje, y también productos por unidades como se visualiza actualmente (stock unidades actual). Que la app reconozca solo el campo que tiene información de stock (ya sea unidad o kilo) para que no haya error al realizar un ticket.
+-necesito que en la ventana también se agregue un nuevo campo de "Precio Costo" (este no se muestra en el ticket) y el campo actual "precio" pase a ser "precio final" (este si va en el ticket). Estaría bueno agregar un tercer campo (no hace falta que sea input, solo mostrar el porcentaje) al lado de estos dos últimos campos (precio costo y precio final), en el cual mencione cuanto porcentaje de "ganancia" se agregó al precio costo para que quede el precio final.
+
+Historial: Actualmente OK. 
+
+Reportes:
+Con los campos agregados anteriormente, en reportes estaría bueno que me muestre en el dashboard monto hoy FINAL,
+monto costo productos y monto ganancia. ya que tenemos el porcentaje en la pestaña de productos.
