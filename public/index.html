@@ -68,7 +68,7 @@
       <!-- Alertas de stock -->
       <div class="card">
         <div class="card-title">⚠️ Stock bajo</div>
-        <div id="stock-alertas">
+        <div id="stock-alertas" style="max-height:320px;overflow-y:auto;padding-right:4px">
           <div class="empty-state"><div class="icon">✅</div><p>Todo el stock en orden</p></div>
         </div>
       </div>
@@ -137,7 +137,7 @@
     if (s.ok) {
       document.getElementById('stat-alertas').textContent = s.data.length;
       if (s.data.length) {
-        document.getElementById('stock-alertas').innerHTML = s.data.slice(0,6).map(p => `
+        document.getElementById('stock-alertas').innerHTML = s.data.map(p => `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
             <span style="font-size:14px">${p.nombre}</span>
             <span class="badge badge-red">Stock: ${p.stock}</span>

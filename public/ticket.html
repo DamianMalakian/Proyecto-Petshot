@@ -106,13 +106,22 @@
               <span style="color:var(--text-muted)">Subtotal</span>
               <span id="subtotal-display">$0,00</span>
             </div>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:14px">
-              <span style="color:var(--text-muted)">Descuento</span>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:14px">
+              <span style="color:var(--text-muted)">Desc. %</span>
               <div class="desc-pct-wrap">
                 <input type="number" id="descuento-pct" class="form-control" value="0" min="0" max="100" step="1"
                   style="width:70px;text-align:right" oninput="actualizarTotal()">
                 <span style="color:var(--text-muted)">%</span>
                 <span id="descuento-monto" style="font-size:12px;color:var(--red);min-width:60px;text-align:right"></span>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:14px">
+              <span style="color:var(--text-muted)">Desc. $</span>
+              <div class="desc-pct-wrap">
+                <input type="number" id="descuento-manual" class="form-control" value="0" min="0" step="1"
+                  style="width:70px;text-align:right" oninput="actualizarTotal()">
+                <span style="color:var(--text-muted)">$</span>
+                <span id="descuento-manual-display" style="font-size:12px;color:var(--red);min-width:60px;text-align:right"></span>
               </div>
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center">
@@ -178,7 +187,7 @@ function filtrarProductos() {
   const buscar = document.getElementById('buscar-prod').value.toLowerCase();
   const cat = document.getElementById('filtro-cat').value;
   const filtrados = todosProductos.filter(p =>
-    (!buscar || p.nombre.toLowerCase().includes(buscar)) &&
+    (!buscar || p.nombre.toLowerCase().includes(buscar) || (p.descripcion && p.descripcion.toLowerCase().includes(buscar))) &&
     (!cat || p.categoria_id == cat)
   );
   renderProductos(filtrados);
@@ -202,6 +211,7 @@ function renderProductos(lista) {
            style="${sinStock ? 'opacity:0.45;cursor:not-allowed' : ''}">
         <div style="min-width:0">
           <div style="font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.nombre}</div>
+          ${p.descripcion ? `<div style="font-size:11px;color:var(--accent-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.descripcion}</div>` : ''}
           <div style="font-size:11px;color:var(--text-muted);margin-top:1px">${stockInfo}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -323,17 +333,20 @@ function actualizarTotal() {
     return s + i.precio * i.cantidad;
   }, 0);
   const pct = Math.min(Math.max(parseFloat(document.getElementById('descuento-pct').value) || 0, 0), 100);
-  const descMonto = subtotal * (pct / 100);
-  const total = subtotal - descMonto;
+  const descPct = subtotal * (pct / 100);
+  const descManual = Math.min(Math.max(parseFloat(document.getElementById('descuento-manual').value) || 0, 0), subtotal - descPct);
+  const total = subtotal - descPct - descManual;
 
   document.getElementById('subtotal-display').textContent = fmt.currency(subtotal);
-  document.getElementById('total-display').textContent = fmt.currency(total);
-  document.getElementById('descuento-monto').textContent = pct > 0 ? `-${fmt.currency(descMonto)}` : '';
+  document.getElementById('total-display').textContent = fmt.currency(Math.max(total, 0));
+  document.getElementById('descuento-monto').textContent = pct > 0 ? `-${fmt.currency(descPct)}` : '';
+  document.getElementById('descuento-manual-display').textContent = descManual > 0 ? `-${fmt.currency(descManual)}` : '';
 }
 
 function limpiarCarrito() {
   carrito = [];
   document.getElementById('descuento-pct').value = 0;
+  document.getElementById('descuento-manual').value = 0;
   renderCarrito();
 }
 
@@ -355,10 +368,16 @@ async function confirmarVenta() {
     : { producto_id: i.producto_id, cantidad: i.cantidad }
   );
 
+  const subtotalVenta = carrito.reduce((s, i) => i.tipo_stock === 'kilo' ? s + i.precio * i.cantidad_kg : s + i.precio * i.cantidad, 0);
+  const pctVenta = Math.min(Math.max(parseFloat(document.getElementById('descuento-pct').value) || 0, 0), 100);
+  const descPctMonto = subtotalVenta * (pctVenta / 100);
+  const descManualMonto = Math.min(Math.max(parseFloat(document.getElementById('descuento-manual').value) || 0, 0), subtotalVenta - descPctMonto);
+
   const body = {
     cliente_nombre: document.getElementById('cliente').value || 'Consumidor Final',
     items,
-    descuento_pct: parseFloat(document.getElementById('descuento-pct').value) || 0,
+    descuento_pct: pctVenta,
+    descuento_manual: descManualMonto,
     observaciones: document.getElementById('observaciones').value,
   };
 
@@ -385,9 +404,10 @@ async function confirmarVenta() {
       return `<div style="display:flex;justify-content:space-between"><span>${i.nombre} x${i.cantidad}</span><span>${fmt.currency(i.precio * i.cantidad)}</span></div>`;
     }).join('')}
     <div style="color:var(--text-muted)">${linea}</div>
-    ${r.descuento_pct > 0 ? `
-      <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${fmt.currency(subtotal)}</span></div>
-      <div style="display:flex;justify-content:space-between;color:var(--red)"><span>Descuento ${r.descuento_pct}%</span><span>-${fmt.currency(r.descuento_monto)}</span></div>
+    ${(r.descuento_pct > 0 || descManualMonto > 0) ? `
+      <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${fmt.currency(subtotalVenta)}</span></div>
+      ${r.descuento_pct > 0 ? `<div style="display:flex;justify-content:space-between;color:var(--red)"><span>Descuento ${r.descuento_pct}%</span><span>-${fmt.currency(descPctMonto)}</span></div>` : ''}
+      ${descManualMonto > 0 ? `<div style="display:flex;justify-content:space-between;color:var(--red)"><span>Descuento manual</span><span>-${fmt.currency(descManualMonto)}</span></div>` : ''}
     ` : ''}
     <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;margin-top:4px">
       <span>TOTAL</span><span style="color:var(--accent)">${fmt.currency(r.total)}</span>
@@ -403,6 +423,7 @@ async function confirmarVenta() {
   limpiarCarrito();
   document.getElementById('cliente').value = '';
   document.getElementById('observaciones').value = '';
+  document.getElementById('descuento-manual').value = 0;
   await cargarCatalogo();
 }
 
